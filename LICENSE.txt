@@ -5,6 +5,7 @@ License: BSD-3-Clause
 Files: doc/source/themes/scikit-image/layout.html
 Copyright: 2007-2010 the Sphinx team
 License: BSD-3-Clause
+HERE IS MY UPDATE
 
 Files: skimage/feature/_canny.py
        skimage/filters/edges.py
