@@ -21,6 +21,7 @@ python_sources = [
     '_find_contours_cy.py',
     '_marching_cubes_lewiner.py',
     'entropy.py',
+    'object_count.py',
     '_moments_cy.py',
 ]
 
