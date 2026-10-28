@@ -1,0 +1,38 @@
+---
+description: Dual public API (skimage / skimage2 / _skimage2) and deprecation cycle. Apply when editing library code or changing function signatures.
+globs: src/**/*.py
+alwaysApply: false
+---
+
+# Dual API and deprecations
+
+Implement behavior only in `_skimage2`. `skimage` re-exports (and may wrap with `ski2_migration_decorator`). `skimage2` is a lazy shim that forwards to `_skimage2` and must stay implementation-free.
+
+```python
+# BAD — new logic in the stable package
+# src/skimage/filters/foo.py
+def foo(image):
+    return image * 2
+
+# GOOD — implement once, re-export
+# src/_skimage2/filters/foo.py
+def foo(image):
+    return image * 2
+
+# src/skimage/filters/foo.py
+from _skimage2.filters.foo import foo as foo  # noqa: F401
+```
+
+Do not add features under `skimage.future` (removed in skimage2) or extend `skimage.io` plugins (`plugin=` / `manage_plugins` / `available_plugins` are deprecated; removal targeted at 0.27). Prefer `imageio` / `tifffile` directly.
+
+## Signature changes
+
+A deprecation cycle is required when renaming/reordering args, changing defaults, or moving/renaming a function. Not required for a new function or a new keyword at the **end** of the signature.
+
+Use `_skimage2._shared.utils` helpers, not ad-hoc `warnings.warn`:
+
+- `deprecate_func` — remove or rename a function (`FutureWarning`)
+- `deprecate_parameter(..., DEPRECATED)` — remove/rename a parameter
+- `change_default_value` — default will change in `changed_version`
+
+Also: `TODO.txt` entry for the removal version, note in `doc/release/release_dev.rst`, and a `pytest.warns(FutureWarning, match=...)` test in **both** test trees.
