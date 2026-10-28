@@ -33,6 +33,7 @@ python_sources = [
   '_regionprops_utils.py',
   'block.py',
   'entropy.py',
+  'object_count.py',
   'fit.py',
   'pnpoly.py',
   'profile.py'
