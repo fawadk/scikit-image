@@ -7,7 +7,7 @@ so the measurements can be tested on their own.
 from io import BytesIO
 
 import numpy as np
-from PIL import Image, ImageDraw, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 
 import skimage as ski
@@ -17,9 +17,12 @@ class ImageAnalysisError(ValueError):
     """The upload cannot be measured. The message is safe to show to a user."""
 
 
-_ALLOWED_FORMATS = {'PNG', 'JPEG'}
+_ALLOWED_FORMATS = {'PNG', 'JPEG', 'MPO'}
 _MAX_PIXELS = 8_000_000
 _OUTLINE = (31, 79, 216)
+# style.css paints previews on this color. Flatten transparency onto it so
+# the annotated image matches the picture on the page.
+_PREVIEW_BACKGROUND = (0x11, 0x11, 0x11)
 
 
 def analyze_image(data: bytes, *, min_size: int = 64) -> dict:
@@ -27,7 +30,9 @@ def analyze_image(data: bytes, *, min_size: int = 64) -> dict:
 
     Bright objects on a dark background, and dark objects on a light
     background, are both treated as foreground. Blobs of ``min_size``
-    pixels or fewer are dropped.
+    pixels or fewer are dropped. Transparency is flattened onto the
+    preview background, and orientation metadata is applied first, so
+    the count matches the image shown in the browser.
 
     Parameters
     ----------
@@ -115,7 +120,10 @@ def _load_rgb_and_gray(data: bytes):
             image.load()
             if image.format not in _ALLOWED_FORMATS:
                 raise ImageAnalysisError('Upload a PNG or JPEG image.')
-            rgb = np.asarray(image.convert('RGB'))
+            # Browsers display EXIF orientation. MPO is a JPEG with extra
+            # frames; the first frame is the picture.
+            oriented = ImageOps.exif_transpose(image)
+            rgb = _displayed_rgb(oriented)
     except ImageAnalysisError:
         raise
     except DecompressionBombError as exc:
@@ -134,6 +142,19 @@ def _load_rgb_and_gray(data: bytes):
     # threshold matches the intensities stored in the file.
     gray = np.asarray(ski.color.rgb2gray(rgb), dtype=np.float64) * 255.0
     return rgb, gray
+
+
+def _displayed_rgb(image):
+    """RGB pixels as shown on the page. Clear pixels take the preview background."""
+    if image.has_transparency_data:
+        rgba = image.convert('RGBA')
+        mask = rgba.getchannel('A')
+        alpha = np.asarray(mask)
+        if alpha.size and int(alpha.min()) < 255:
+            background = Image.new('RGB', rgba.size, _PREVIEW_BACKGROUND)
+            background.paste(rgba, mask=mask)
+            return np.asarray(background)
+    return np.asarray(image.convert('RGB'))
 
 
 def _draw_overlay(rgb, labels, objects):

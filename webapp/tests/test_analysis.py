@@ -110,3 +110,73 @@ def test_image_over_the_pixel_cap_is_rejected(monkeypatch):
 
     with pytest.raises(ImageAnalysisError, match='too large'):
         analyze_image(_encode(image))
+
+
+def test_shapes_defined_only_by_alpha_are_counted():
+    """A flat RGB color with an alpha mask is what the preview shows."""
+    rgba = np.full((80, 80, 4), 255, dtype=np.uint8)
+    rgba[..., 3] = 0
+    rgba[10:30, 10:30, 3] = 255
+    rgba[50:70, 45:70, 3] = 255
+
+    result = analyze_image(_encode(rgba))
+
+    assert result['summary']['count'] == 2
+    overlay = np.asarray(Image.open(BytesIO(result['overlay_png'])))
+    # Transparent corners are painted over the same #111 well as the preview.
+    assert overlay[0, 0].tolist() == [0x11, 0x11, 0x11]
+
+
+def test_fully_transparent_pixels_are_not_objects():
+    rgba = np.zeros((80, 80, 4), dtype=np.uint8)
+    rgba[10:30, 10:30, :3] = 255
+    rgba[50:70, 45:70, :3] = 255
+
+    result = analyze_image(_encode(rgba))
+
+    assert result['summary']['count'] == 0
+
+
+def test_a_transparent_pixel_does_not_hide_color_objects():
+    rgb = _two_blobs(channels=3)
+    rgba = np.dstack([rgb, np.full(rgb.shape[:2], 255, dtype=np.uint8)])
+    rgba[0, 0, 3] = 0
+
+    result = analyze_image(_encode(rgba))
+
+    assert result['summary']['count'] == 2
+
+
+def test_opaque_rgba_still_counts_color_objects():
+    rgb = _two_blobs(channels=3)
+    rgba = np.dstack([rgb, np.full(rgb.shape[:2], 255, dtype=np.uint8)])
+
+    result = analyze_image(_encode(rgba))
+
+    assert result['summary']['count'] == 2
+
+
+def test_exif_orientation_is_applied_before_measuring():
+    stored = np.zeros((40, 80), dtype=np.uint8)
+    stored[5:25, 5:25] = 255
+    image = Image.fromarray(stored)
+    exif = image.getexif()
+    exif[274] = 6  # displayed width/height swap relative to stored pixels
+    buffer = BytesIO()
+    image.save(buffer, format='PNG', exif=exif.tobytes())
+
+    result = analyze_image(buffer.getvalue())
+
+    assert result['summary']['count'] == 1
+    assert (result['width'], result['height']) == (40, 80)
+
+
+def test_multi_picture_jpeg_is_measured():
+    first = Image.fromarray(_two_blobs())
+    second = Image.fromarray(np.zeros((80, 80), dtype=np.uint8))
+    buffer = BytesIO()
+    first.save(buffer, format='MPO', save_all=True, append_images=[second])
+
+    result = analyze_image(buffer.getvalue())
+
+    assert result['summary']['count'] == 2
