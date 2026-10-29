@@ -12,6 +12,7 @@ __all__ = [
     'adjust_gamma',
     'adjust_log',
     'adjust_sigmoid',
+    'enhance_preview',
 ]
 
 
@@ -848,3 +849,126 @@ def is_low_contrast(
     ratio = (limits[1] - limits[0]) / (dlimits[1] - dlimits[0])
 
     return ratio < fraction_threshold
+
+
+def _equalize_channels(image, channel_axis):
+    """Histogram-equalize a grayscale image or each channel independently."""
+    if channel_axis is None:
+        return equalize_hist(image)
+
+    moved = np.moveaxis(image, channel_axis, -1)
+    channels = [equalize_hist(moved[..., c]) for c in range(moved.shape[-1])]
+    equalized = np.stack(channels, axis=-1)
+    return np.moveaxis(equalized, -1, channel_axis)
+
+
+def enhance_preview(
+    image,
+    *,
+    equalize=False,
+    denoise=False,
+    sigma_color=None,
+    sigma_spatial=1,
+    channel_axis=None,
+):
+    """Clean a dark or noisy image for a side-by-side preview.
+
+    Wraps histogram equalization and bilateral denoising. Denoising runs
+    first so contrast stretching does not amplify noise. With both options
+    off, a copy of ``image`` is returned.
+
+    Parameters
+    ----------
+    image : ndarray
+        Grayscale ``(M, N)`` image, or a color image when ``channel_axis``
+        is set.
+    equalize : bool, optional
+        Apply histogram equalization when True.
+    denoise : bool, optional
+        Apply bilateral denoising when True.
+    sigma_color : float or None, optional
+        Color-distance sigma passed to
+        `skimage.restoration.denoise_bilateral`. ``None`` uses that
+        function's default (the standard deviation of the image).
+    sigma_spatial : float, optional
+        Spatial sigma passed to
+        `skimage.restoration.denoise_bilateral`. Must be positive when
+        ``denoise`` is True.
+    channel_axis : int or None, optional
+        Axis that indexes color channels. ``None`` means a single-channel
+        image. For an RGB image with channels last, pass ``-1``.
+
+    Returns
+    -------
+    preview : ndarray
+        Cleaned image. Equalization promotes the result to a floating
+        dtype. When both steps are off, ``preview`` has the same values
+        and dtype as ``image``.
+
+    Raises
+    ------
+    TypeError
+        If ``image`` is not a numeric array.
+    ValueError
+        If the shape and ``channel_axis`` do not describe a 2D grayscale
+        or 3D color image, or if a denoise sigma is not positive.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from _skimage2.exposure import enhance_preview
+    >>> dark = np.array([[0, 1], [2, 3]], dtype=np.uint8)
+    >>> cleaned = enhance_preview(dark, equalize=True)
+    >>> cleaned.shape
+    (2, 2)
+    >>> float(cleaned.max())
+    1.0
+    """
+    image = np.asanyarray(image)
+    if image.dtype.kind not in "buif":
+        raise TypeError(f"image must be a numeric array, got dtype {image.dtype}")
+
+    if image.ndim == 2:
+        if channel_axis is not None:
+            raise ValueError("channel_axis must be None for a 2D grayscale image.")
+    elif image.ndim == 3:
+        if channel_axis is None:
+            raise ValueError(
+                "channel_axis is required for a color image. "
+                "Use channel_axis=-1 when color channels are last."
+            )
+        axis = channel_axis + image.ndim if channel_axis < 0 else channel_axis
+        if axis not in (0, 1, 2):
+            raise ValueError(
+                f"channel_axis {channel_axis} is out of range for shape {image.shape}."
+            )
+    else:
+        raise ValueError(
+            "enhance_preview expects a 2D grayscale image or a 3D color image "
+            f"(with channel_axis set), got shape {image.shape}."
+        )
+
+    if not equalize and not denoise:
+        return np.copy(image)
+
+    preview = image
+    if denoise:
+        spatial_ok = sigma_spatial is not None and np.isfinite(sigma_spatial)
+        if not spatial_ok or sigma_spatial <= 0:
+            raise ValueError("sigma_spatial must be positive.")
+        if sigma_color is not None and (
+            not np.isfinite(sigma_color) or sigma_color <= 0
+        ):
+            raise ValueError("sigma_color must be positive.")
+        # Local import: restoration does not need to load with exposure.
+        from _skimage2.restoration import denoise_bilateral
+
+        preview = denoise_bilateral(
+            preview,
+            sigma_color=sigma_color,
+            sigma_spatial=sigma_spatial,
+            channel_axis=channel_axis,
+        )
+    if equalize:
+        preview = _equalize_channels(preview, channel_axis)
+    return preview

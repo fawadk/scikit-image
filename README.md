@@ -19,6 +19,24 @@
 
 Also see [installing `scikit-image`](https://github.com/scikit-image/scikit-image/blob/main/INSTALL.rst).
 
+## Make a dark or noisy scan readable
+
+You do not need to write Python.
+
+1. Install the preview app once: `pip install streamlit`
+2. From this folder, run: `streamlit run webapp/pages/2_Enhance.py`
+3. The page opens on the sample camera photo, so you can try it with no file.
+4. Turn on **Histogram equalization** or **Bilateral denoise**, move the
+   `sigma_color` and `sigma_spatial` sliders, and compare the original and
+   the cleaned image side by side.
+5. Click **Download cleaned PNG** to save the cleaned photo.
+6. To open your own invoice or photo, use **Open a photo** in the sidebar.
+   **Use sample camera photo** switches back.
+
+When a Home page is already in this folder, `streamlit run webapp/Home.py`
+and then open **Enhance**. The Enhance page keeps a photo stored as
+`workspace_image` if another page put one there.
+
 ## License
 
 See [LICENSE.txt](https://github.com/scikit-image/scikit-image/blob/main/LICENSE.txt).

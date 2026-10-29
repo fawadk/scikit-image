@@ -6,6 +6,7 @@ from _skimage2.exposure.exposure import (
     adjust_gamma as adjust_gamma,
     adjust_log as adjust_log,
     adjust_sigmoid as adjust_sigmoid,
+    enhance_preview as enhance_preview,
 )  # noqa: F401
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     'adjust_gamma',
     'adjust_log',
     'adjust_sigmoid',
+    'enhance_preview',
 ]
 
 from _skimage2.exposure.exposure import intensity_range, is_low_contrast  # noqa: F401
