@@ -7,7 +7,7 @@ so the measurements can be tested on their own.
 from io import BytesIO
 
 import numpy as np
-from PIL import Image, ImageDraw, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 
 import skimage as ski
@@ -27,7 +27,9 @@ def analyze_image(data: bytes, *, min_size: int = 64) -> dict:
 
     Bright objects on a dark background, and dark objects on a light
     background, are both treated as foreground. Blobs of ``min_size``
-    pixels or fewer are dropped.
+    pixels or fewer are dropped. An EXIF orientation tag is applied
+    first, so a phone JPEG is measured in the upright view a browser
+    shows for the same file.
 
     Parameters
     ----------
@@ -115,7 +117,9 @@ def _load_rgb_and_gray(data: bytes):
             image.load()
             if image.format not in _ALLOWED_FORMATS:
                 raise ImageAnalysisError('Upload a PNG or JPEG image.')
-            rgb = np.asarray(image.convert('RGB'))
+            # Transpose before convert. exif_transpose drops image.format.
+            upright = ImageOps.exif_transpose(image)
+            rgb = np.asarray(upright.convert('RGB'))
     except ImageAnalysisError:
         raise
     except DecompressionBombError as exc:
