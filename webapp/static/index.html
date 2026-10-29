@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acme image analysis</title>
+  <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wordmark">acme</div>
+    <p class="tag">Image analysis</p>
+  </header>
+  <main>
+    <section class="panel" aria-labelledby="upload-heading">
+      <h1 id="upload-heading">Upload an image</h1>
+      <p class="lead">PNG or JPEG, up to 10 MB. No account needed.</p>
+      <div id="drop" class="drop">
+        <input id="file" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" aria-label="Upload image">
+        <p>Drop an image here, or browse</p>
+      </div>
+      <div class="actions">
+        <button id="analyze" type="button" disabled>Analyze</button>
+        <button id="sample" type="button">Try a sample</button>
+        <button id="retry" type="button" hidden>Retry</button>
+      </div>
+      <p id="error" class="error" role="alert" hidden></p>
+      <p id="status" class="status" role="status" hidden>Analyzing…</p>
+      <figure id="preview-wrap" hidden>
+        <figcaption id="file-meta"></figcaption>
+        <img id="preview" alt="Selected image preview">
+      </figure>
+    </section>
+
+    <section id="results" class="panel" hidden aria-labelledby="results-heading">
+      <h2 id="results-heading">Results</h2>
+      <p id="empty" class="notice" hidden>No objects found, try a clearer image</p>
+      <div class="cards">
+        <article class="card">
+          <h3>Objects</h3>
+          <p id="count">0</p>
+        </article>
+        <article class="card">
+          <h3>Average area</h3>
+          <p id="mean">—</p>
+        </article>
+        <article class="card">
+          <h3>Largest</h3>
+          <p id="largest">—</p>
+        </article>
+        <article class="card">
+          <h3>Smallest</h3>
+          <p id="smallest">—</p>
+        </article>
+      </div>
+      <div class="images">
+        <figure>
+          <figcaption>Original</figcaption>
+          <img id="original" alt="Original image">
+        </figure>
+        <figure>
+          <figcaption>Annotated</figcaption>
+          <img id="overlay" alt="Annotated image with numbered outlines">
+        </figure>
+      </div>
+      <div class="actions">
+        <button id="csv" type="button">Download CSV</button>
+        <button id="png" type="button">Download annotated image</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col"><button type="button" data-key="id">Object #</button></th>
+              <th scope="col"><button type="button" data-key="area">Area</button></th>
+              <th scope="col"><button type="button" data-key="centroid">Centroid</button></th>
+              <th scope="col"><button type="button" data-key="perimeter">Perimeter</button></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
