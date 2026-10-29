@@ -1,12 +1,10 @@
 """Enhance a dark or noisy photo and compare it with the original."""
 
-import io
 import sys
 from pathlib import Path
 
 import numpy as np
 import streamlit as st
-from imageio.v3 import imread
 
 from skimage import data
 
@@ -17,9 +15,9 @@ if str(_REPO_ROOT) not in sys.path:
 
 from webapp.enhance_ui import (  # noqa: E402
     channel_axis_for,
+    decode_uploaded,
     display_image,
     intensity_counts,
-    prepare_uploaded,
     preview_png_bytes,
     run_preview,
 )
@@ -34,13 +32,7 @@ def load_sample():
 
 
 def load_upload(uploaded):
-    try:
-        array = imread(io.BytesIO(uploaded.getvalue()))
-    except Exception as exc:
-        raise ValueError(
-            "That file could not be read. Use a PNG, JPEG, or TIFF photo."
-        ) from exc
-    st.session_state.workspace_image = prepare_uploaded(array)
+    st.session_state.workspace_image = decode_uploaded(uploaded.getvalue())
     st.session_state.workspace_name = uploaded.name
     st.session_state.workspace_upload_id = uploaded.file_id
 
