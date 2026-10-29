@@ -3,7 +3,7 @@
 import io
 
 import numpy as np
-from imageio.v3 import imwrite
+from imageio.v3 import imopen, imwrite
 
 from skimage.exposure import enhance_preview, histogram
 from skimage.util import img_as_ubyte
@@ -15,6 +15,35 @@ def prepare_uploaded(array):
     if image.ndim == 3 and image.shape[-1] == 1:
         image = np.squeeze(image, axis=-1)
     return image
+
+
+def decode_uploaded(data):
+    """Load photo bytes the way the picture should be shown.
+
+    EXIF orientation is applied, and the sample values are left intact.
+    A CMYK JPEG is converted to RGB so the black plate is not kept as
+    alpha. Grayscale-with-alpha is expanded to RGBA.
+
+    Raises
+    ------
+    ValueError
+        If the bytes are not a readable photo.
+    """
+    buffer = io.BytesIO(data)
+    try:
+        with imopen(buffer, "r", plugin="pillow") as src:
+            mode = src.metadata().get("mode")
+            read_mode = None
+            if mode == "CMYK":
+                read_mode = "RGB"
+            elif mode in {"LA", "PA"}:
+                read_mode = "RGBA"
+            image = src.read(rotate=True, mode=read_mode)
+    except Exception as exc:
+        raise ValueError(
+            "That file could not be read. Use a PNG, JPEG, or TIFF photo."
+        ) from exc
+    return prepare_uploaded(image)
 
 
 def channel_axis_for(image):
@@ -79,15 +108,49 @@ def preview_png_bytes(image):
     return buffer.getvalue()
 
 
-def run_preview(image, *, equalize, denoise, sigma_color, sigma_spatial):
-    """Call ``enhance_preview`` with the channel axis chosen for this photo."""
+def _split_alpha(image):
+    """Separate a trailing alpha channel from color.
+
+    Histogram equalization and bilateral denoising are defined on color.
+    Applying either one to alpha remaps transparency. A fully clear pixel
+    in a mostly transparent image becomes opaque.
+    """
     image = np.asarray(image)
-    channel_axis = channel_axis_for(image)
-    return enhance_preview(
-        image,
+    if image.ndim == 3 and image.shape[-1] == 4:
+        return image[..., :3], image[..., 3]
+    return image, None
+
+
+def _restore_alpha(preview, alpha):
+    """Append ``alpha`` using the same scale as ``preview``."""
+    if alpha is None:
+        return preview
+    if np.issubdtype(preview.dtype, np.floating):
+        if np.issubdtype(alpha.dtype, np.integer):
+            alpha_out = alpha.astype(preview.dtype) / np.iinfo(alpha.dtype).max
+        elif np.issubdtype(alpha.dtype, np.floating):
+            alpha_out = np.clip(alpha, 0.0, 1.0).astype(preview.dtype, copy=False)
+        else:
+            alpha_out = alpha.astype(preview.dtype)
+    else:
+        alpha_out = alpha.astype(preview.dtype, copy=False)
+    return np.concatenate([preview, alpha_out[..., None]], axis=-1)
+
+
+def run_preview(image, *, equalize, denoise, sigma_color, sigma_spatial):
+    """Call ``enhance_preview`` with the channel axis chosen for this photo.
+
+    An RGBA photo is cleaned on the color channels only. Alpha is copied
+    through unchanged so a transparent background stays transparent.
+    """
+    color, alpha = _split_alpha(image)
+    channel_axis = channel_axis_for(color)
+    preview = enhance_preview(
+        color,
         equalize=equalize,
         denoise=denoise,
         sigma_color=sigma_color,
         sigma_spatial=sigma_spatial,
         channel_axis=channel_axis,
     )
+    return _restore_alpha(preview, alpha)
