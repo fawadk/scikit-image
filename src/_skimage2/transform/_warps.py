@@ -1255,6 +1255,11 @@ def _local_mean_weights(old_size, new_size, grid_mode, dtype):
         Rows sum to 1.
 
     """
+    if old_size == 1:
+        # Cell-center mode has no interior on a length-1 axis (old_size - 1 == 0)
+        # and would divide by zero. That single sample fills every output bin.
+        return np.ones((new_size, 1), dtype=dtype)
+
     if grid_mode:
         old_breaks = np.linspace(0, old_size, num=old_size + 1, dtype=dtype)
         new_breaks = np.linspace(0, old_size, num=new_size + 1, dtype=dtype)
@@ -1393,7 +1398,9 @@ def resize_local_mean(
     resized = convert_to_float(resized, preserve_range)
     dtype = resized.dtype
 
-    for axis, (old_size, new_size) in enumerate(zip(image.shape, output_shape)):
+    # `resized` may have singleton axes appended when output_shape is longer
+    # than image.ndim. Zip that shape, not the original, or those axes are skipped.
+    for axis, (old_size, new_size) in enumerate(zip(resized.shape, output_shape)):
         if old_size == new_size:
             continue
         weights = _local_mean_weights(old_size, new_size, grid_mode, dtype)

@@ -997,6 +997,30 @@ def test_resize_local_mean2d_4d():
     assert_array_almost_equal(resized, ref)
 
 
+def test_resize_local_mean_appended_axes_not_truncated():
+    # Extra output axes are appended as singletons and must then be resized
+    # to the requested length. Size-1 extras hide a skip of those axes.
+    x = np.zeros((5, 5), dtype=np.float64)
+    x[1, 1] = 1
+    plane = resize_local_mean(x, (10, 10))
+
+    resized = resize_local_mean(x, (10, 10, 3))
+    assert resized.shape == (10, 10, 3)
+    for i in range(3):
+        assert_array_almost_equal(resized[..., i], plane)
+
+    resized = resize_local_mean(x, (10, 10, 1, 2))
+    assert resized.shape == (10, 10, 1, 2)
+    for i in range(2):
+        assert_array_almost_equal(resized[..., 0, i], plane)
+
+    plane_centers = resize_local_mean(x, (10, 10), grid_mode=False)
+    resized = resize_local_mean(x, (10, 10, 3), grid_mode=False)
+    assert resized.shape == (10, 10, 3)
+    for i in range(3):
+        assert_array_almost_equal(resized[..., i], plane_centers)
+
+
 @pytest.mark.parametrize("dim", range(1, 6))
 def test_resize_local_mean_nd(dim):
     shape = 2 + np.arange(dim) * 2
